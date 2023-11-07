@@ -1,0 +1,48 @@
+import argparse
+import os
+from Bio import SeqIO
+
+def calculate_homology_lengths(insert_file, output_dir):
+    insert_object = SeqIO.read(insert_file, 'gb')
+    # Initialize a list to store the homology lengths
+    homology_lengths = []
+
+    # Initialize a variable to keep track of the previous feature end position
+    prev_end = 0
+
+    # Iterate through the features
+    for feature in insert_object.features:
+        qualifiers = feature.qualifiers
+        if "label" in qualifiers:
+            label = qualifiers["label"][0]
+            # Cleaning the Label
+            cleaned_label = label.replace(" ", "").lower()
+
+            # Check if the label contains "fragment"
+            if "fragment" in cleaned_label:
+                # Calculate the overlap length between the current and previous fragment
+                overlap_length = prev_end - feature.location.start
+
+                # Append the overlap length to the list
+                homology_lengths.append(overlap_length)
+
+                # Update the previous end position
+                prev_end = feature.location.end
+
+    # Combine the output_dir with the output file name
+    output_file_path = os.path.join(output_dir, "homology_lengths.txt")
+
+    # Write the homology lengths list to the output file
+    with open(output_file_path, "w") as outfile:
+        outfile.write("\n".join(map(str, homology_lengths)))
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Calculate homology lengths from an insert file.')
+    parser.add_argument('--insert_file', required=True, help='Input GenBank insert file path')
+    parser.add_argument('--output_dir', required=True, help='Output directory to store homology lengths file')
+    args = parser.parse_args()
+
+    # Create the output directory if it doesn't exist
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    calculate_homology_lengths(args.insert_file, args.output_dir)
