@@ -1,0 +1,82 @@
+import os
+import yaml
+from Bio import SeqIO
+import argparse
+
+def separator(yaml_file, input_folder, validator_file): 
+    with open(yaml_file, 'r') as file:
+        yaml_data = yaml.safe_load(file)
+    
+    donor_sequence_list = [sequence.upper() for sequence in yaml_data.get("donor_sequence", [])]
+    recipient_sequence_list = [sequence.upper() for sequence in yaml_data.get("recipient_sequence", [])]
+
+    target_donor_qualifiers = yaml_data.get("donor_feature", [])
+    target_recipient_qualifiers = yaml_data.get("recipient_feature", [])
+    
+    files = os.listdir(input_folder)
+    files.sort()
+    
+    for file in files: 
+        file_path = os.path.join(input_folder, file)
+        with open(file_path, 'r', encoding='latin1') as genbank_file:
+            records = SeqIO.parse(genbank_file, 'gb')
+            
+            for input_object in records:
+                donor_found = False
+                recipient_found = False
+
+                for sequence in donor_sequence_list:
+                    if sequence in str(input_object.seq):
+                        donor_found = True
+                        break
+
+                for sequence in recipient_sequence_list:
+                    if sequence in str(input_object.seq):
+                        recipient_found = True
+                        break
+
+                if donor_found:
+                    donor_features = input_object.features
+                    target_exist = {qualifier: False for qualifier in target_donor_qualifiers}
+                    for feature in donor_features:
+                        qualifiers = feature.qualifiers
+
+                        if "label" in qualifiers: 
+                            label = qualifiers["label"][0]
+
+                            for target_qualifier in target_donor_qualifiers:
+                                if target_qualifier in label : 
+                                    target_exist[target_qualifier] = True
+
+                    for target_qualifier, exists in target_exist.items():
+                        if not exists:
+                            with open(os.path.join(validator_file, "validator_result.txt"), 'a') as result_file:
+                                result_file.write(f"The '{target_qualifier}' annotation does not exist: {file}.\n")
+
+                if recipient_found: 
+                    recipient_features = input_object.features
+                    target_exist = {qualifier: False for qualifier in target_recipient_qualifiers}
+                    for feature in recipient_features:
+                        qualifiers = feature.qualifiers
+
+                        if "label" in qualifiers: 
+                            label = qualifiers["label"][0]
+
+                            for target_recipient_qualifier in target_recipient_qualifiers:
+                                if target_recipient_qualifier in label : 
+                                    target_exist[target_recipient_qualifier] = True
+
+                    for target_recipient_qualifier, exists in target_exist.items():
+                        if not exists:
+                            with open(os.path.join(validator_file, "validator_result.txt"), 'a') as result_file:
+                                result_file.write(f"The '{target_recipient_qualifier}' annotation does not exist: {file}.\n")
+                                  
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='GenBank Validator')
+    parser.add_argument('--yaml_file', required=True, help='YAML configuration file')
+    parser.add_argument('--input_folder', required=True, help='Input folder containing GenBank files')
+    parser.add_argument('--validator_file', required=True, help='Output folder for validation results')
+    args = parser.parse_args()
+
+    separator(args.yaml_file, args.input_folder, args.validator_file)
